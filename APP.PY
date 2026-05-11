@@ -1,49 +1,91 @@
+import os
 import sqlite3
 from flask import Flask, request, render_template, redirect, url_for, session
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = 'SU386MAN1601SI'  # Move this to an environment variable in production
+app.secret_key = os.environ.get('SECRET_KEY', 'SU386MAN1601SI')
+
+# ── Database setup ────────────────────────────────────────────────────────────
+# On Vercel:  set DATABASE_URL env var to your Supabase PostgreSQL string
+# Locally:    leave DATABASE_URL unset → falls back to SQLite
+
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+if DATABASE_URL:
+    import psycopg2
+    PH = '%s'          # PostgreSQL uses %s placeholders
+    def get_db():
+        return psycopg2.connect(DATABASE_URL)
+else:
+    PH = '?'           # SQLite uses ? placeholders
+    def get_db():
+        return sqlite3.connect('medicines.db')
 
 
-# ── DB init ──────────────────────────────────────────────────────────────────
+def q(sql):
+    """Swap ? → correct placeholder for the active database."""
+    return sql.replace('?', PH)
+
+
+# ── DB init ───────────────────────────────────────────────────────────────────
 
 def init_db():
-    # Single DB for everything
-    conn = sqlite3.connect('medicines.db')
+    conn   = get_db()
     cursor = conn.cursor()
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            name     TEXT,
-            mobile   TEXT UNIQUE,
-            password TEXT
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS medicines (
-            id      INTEGER PRIMARY KEY AUTOINCREMENT,
-            formula TEXT,
-            name    TEXT,
-            price   INTEGER,
-            best    TEXT
-        )
-    ''')
+    # SERIAL (Postgres) vs AUTOINCREMENT (SQLite)
+    if DATABASE_URL:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id       SERIAL PRIMARY KEY,
+                name     TEXT,
+                mobile   TEXT UNIQUE,
+                password TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS medicines (
+                id      SERIAL PRIMARY KEY,
+                formula TEXT,
+                name    TEXT,
+                price   INTEGER,
+                best    TEXT
+            )
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                name     TEXT,
+                mobile   TEXT UNIQUE,
+                password TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS medicines (
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                formula TEXT,
+                name    TEXT,
+                price   INTEGER,
+                best    TEXT
+            )
+        ''')
 
     cursor.execute("SELECT COUNT(*) FROM medicines")
     if cursor.fetchone()[0] == 0:
-        cursor.executemany(
-            'INSERT INTO medicines (formula, name, price, best) VALUES (?, ?, ?, ?)',
-            [
-                ('paracetamol', 'Dolo 650',  30, 'Dolo 650'),
-                ('paracetamol', 'Crocin',    25, 'Dolo 650'),
-                ('paracetamol', 'Calpol',    28, 'Dolo 650'),
-                ('ibuprofen',   'Brufen',    40, 'Brufen'),
-                ('ibuprofen',   'Ibugesic',  35, 'Brufen'),
-            ]
-        )
+        sample = [
+            ('paracetamol', 'Dolo 650',  30, 'Dolo 650'),
+            ('paracetamol', 'Crocin',    25, 'Dolo 650'),
+            ('paracetamol', 'Calpol',    28, 'Dolo 650'),
+            ('ibuprofen',   'Brufen',    40, 'Brufen'),
+            ('ibuprofen',   'Ibugesic',  35, 'Brufen'),
+        ]
+        for row in sample:
+            cursor.execute(
+                q('INSERT INTO medicines (formula, name, price, best) VALUES (?, ?, ?, ?)'),
+                row
+            )
 
     conn.commit()
     conn.close()
@@ -53,12 +95,10 @@ init_db()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def get_db():
-    """Return a connection to the single shared database."""
-    return sqlite3.connect('medicines.db')
+ADMIN_USER = os.environ.get('ADMIN_USERNAME', 'Subhamds')
+ADMIN_PASS = os.environ.get('ADMIN_PASSWORD', 'Mondal@2502')
 
 def admin_required():
-    """Return a redirect if the admin is not logged in, else None."""
     if not session.get('logged_in'):
         return redirect(url_for('login'))
     return None
@@ -69,10 +109,8 @@ def admin_required():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        # FIX: keep credentials out of source code – use env vars in production
-        if username == 'Subhamds' and password == 'Mondal@2502':
+        if (request.form['username'] == ADMIN_USER and
+                request.form['password'] == ADMIN_PASS):
             session['logged_in'] = True
             return redirect(url_for('admin'))
         return "Invalid credentials"
@@ -85,24 +123,19 @@ def logout():
     return redirect(url_for('login'))
 
 
-# ── Home / search ─────────────────────────────────────────────────────────────
+# ── Home ──────────────────────────────────────────────────────────────────────
 
-# FIX: removed the duplicate @app.route('/') def main() that was overriding this
 @app.route('/', methods=['GET', 'POST'])
 def home():
     user = session.get('user')
-
     if request.method == 'POST':
         formula = request.form['formula'].lower()
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT name, price FROM medicines WHERE formula = ?", (formula,)
-        )
+        conn    = get_db()
+        cursor  = conn.cursor()
+        cursor.execute(q("SELECT name, price FROM medicines WHERE formula = ?"), (formula,))
         results = cursor.fetchall()
         conn.close()
         return render_template('FP.html', results=results, formula=formula, user=user)
-
     return render_template('FP.html', results=None, user=user)
 
 
@@ -110,42 +143,36 @@ def home():
 def search():
     if 'user' not in session:
         return redirect(url_for('auth'))
-
     formula = request.form['formula'].lower()
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT name, price FROM medicines WHERE formula = ?", (formula,)
-    )
+    conn    = get_db()
+    cursor  = conn.cursor()
+    cursor.execute(q("SELECT name, price FROM medicines WHERE formula = ?"), (formula,))
     results = cursor.fetchall()
     conn.close()
-    return render_template('FP.html', results=results, formula=formula)
+    user = session.get('user')
+    return render_template('FP.html', results=results, formula=formula, user=user)
 
 
 # ── Admin panel ───────────────────────────────────────────────────────────────
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
-    # FIX: protect GET requests too — previously only POST was gated
     guard = admin_required()
     if guard:
         return guard
-
     if request.method == 'POST':
         formula = request.form['formula'].lower()
         name    = request.form['name']
         price   = request.form['price']
-
-        conn = get_db()
-        cursor = conn.cursor()
+        conn    = get_db()
+        cursor  = conn.cursor()
         cursor.execute(
-            'INSERT INTO medicines (formula, name, price) VALUES (?, ?, ?)',
+            q('INSERT INTO medicines (formula, name, price) VALUES (?, ?, ?)'),
             (formula, name, price)
         )
         conn.commit()
         conn.close()
         return 'Medicine added successfully!'
-
     return render_template('admin.html')
 
 
@@ -154,14 +181,13 @@ def update_price():
     guard = admin_required()
     if guard:
         return guard
-
     name      = request.form['name'].lower()
     new_price = request.form['price']
-
-    conn = get_db()
-    cursor = conn.cursor()
+    conn      = get_db()
+    cursor    = conn.cursor()
     cursor.execute(
-        "UPDATE medicines SET price = ? WHERE lower(name) = ?", (new_price, name)
+        q("UPDATE medicines SET price = ? WHERE lower(name) = ?"),
+        (new_price, name)
     )
     conn.commit()
     conn.close()
@@ -173,11 +199,10 @@ def delete_dawa():
     guard = admin_required()
     if guard:
         return guard
-
     dawa_name = request.form['name']
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM medicines WHERE name = ?", (dawa_name,))
+    conn      = get_db()
+    cursor    = conn.cursor()
+    cursor.execute(q("DELETE FROM medicines WHERE name = ?"), (dawa_name,))
     conn.commit()
     conn.close()
     return "Medicine deleted successfully!"
@@ -191,18 +216,15 @@ def auth():
         form_type = request.form.get('form_type')
         mobile    = request.form['mobile']
         password  = request.form['password']
-
-        # FIX: use the same DB that init_db() created the users table in
-        conn   = get_db()
-        cursor = conn.cursor()
+        conn      = get_db()
+        cursor    = conn.cursor()
 
         if form_type == 'signup':
-            name = request.form['name']
-            # FIX: hash the password before storing
+            name   = request.form['name']
             hashed = generate_password_hash(password)
             try:
                 cursor.execute(
-                    "INSERT INTO users (name, mobile, password) VALUES (?, ?, ?)",
+                    q("INSERT INTO users (name, mobile, password) VALUES (?, ?, ?)"),
                     (name, mobile, hashed)
                 )
                 conn.commit()
@@ -214,12 +236,10 @@ def auth():
 
         elif form_type == 'login':
             cursor.execute(
-                "SELECT password FROM users WHERE mobile = ?", (mobile,)
+                q("SELECT password FROM users WHERE mobile = ?"), (mobile,)
             )
             row = cursor.fetchone()
             conn.close()
-
-            # FIX: verify hashed password
             if row and check_password_hash(row[0], password):
                 session['user'] = mobile
                 return redirect('/')
