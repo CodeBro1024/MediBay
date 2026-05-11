@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login / Signup</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #c99eff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .box {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 300px;
+            box-shadow: 0 4px 15px black;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 15px;
+            background: #8f36fb;
+            color: white;
+            border: none;
+        }
+
+        .toggle {
+            text-align: center;
+            margin-top: 10px;
+            cursor: pointer;
+            color: blue;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="box">
+
+    <!-- LOGIN -->
+    <form id="loginForm" method="post">
+        <input type="hidden" name="form_type" value="login">
+
+        <h2>Login</h2>
+
+        <input type="text" name="mobile" placeholder="Mobile" required>
+        <input type="password" name="password" placeholder="Password" required>
+
+        <button type="submit">Login</button>
+
+        <div class="toggle" onclick="showSignup()">Create Account</div>
+    </form>
+
+    <!-- SIGNUP -->
+    <form id="signupForm" method="post" class="hidden">
+        <input type="hidden" name="form_type" value="signup">
+
+        <h2>Signup</h2>
+
+        <input type="text" name="name" placeholder="Name" required>
+        <input type="text" name="mobile" placeholder="Mobile" required>
+        <input type="password" name="password" placeholder="Password" required>
+
+        <button type="submit">Signup</button>
+
+        <div class="toggle" onclick="showLogin()">Already have account?</div>
+    </form>
+
+</div>
+
+<script>
+function showSignup() {
+    document.getElementById("loginForm").classList.add("hidden");
+    document.getElementById("signupForm").classList.remove("hidden");
+}
+
+function showLogin() {
+    document.getElementById("signupForm").classList.add("hidden");
+    document.getElementById("loginForm").classList.remove("hidden");
+}
+</script>
+
+</body>
+</html>
