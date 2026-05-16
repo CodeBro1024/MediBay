@@ -109,8 +109,8 @@ def home():
         cursor.execute(q("SELECT name, price FROM medicines WHERE formula = ?"), (formula,))
         results = cursor.fetchall()
         conn.close()
-        return render_template('FP.html', results=results, formula=formula, user=user)
-    return render_template('FP.html', results=None, user=user)
+        return render_template('fp.html', results=results, formula=formula, user=user)
+    return render_template('fp.html', results=None, user=user)
 
 
 @app.route('/search', methods=['POST'])
@@ -124,7 +124,7 @@ def search():
     results = cursor.fetchall()
     conn.close()
     user = session.get('user')
-    return render_template('FP.html', results=results, formula=formula, user=user)
+    return render_template('fp.html', results=results, formula=formula, user=user)
 
 
 # ── Admin panel ───────────────────────────────────────────────────────────────
