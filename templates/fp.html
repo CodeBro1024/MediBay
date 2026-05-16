@@ -4,48 +4,42 @@
     <meta charset="UTF-8">
     <title>MEDICINE FORM</title>
     <style>
- body {
+body {
     font-family: 'Poppins', sans-serif;
     background-color: #c99eff;
     margin: 0;
-
 }
 h1 {
-  color: #8f36fb;
-  margin-bottom: 20px;
+    color: #8f36fb;
+    margin-bottom: 20px;
 }
 form {
-  background: white;
-  padding: 30px;
-  border-radius: 10px;
-  box-shadow: 0 4px 15px black;
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px black;
+    width: 350px;
 }
 input {
-  width: 100%;
-  padding: 10px;
-  margin-top: 10px;
-  border: 1px solid #d2b5f5;
-  border-radius: 5px;
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    border: 1px solid #d2b5f5;
+    border-radius: 5px;
+    box-sizing: border-box;
 }
 button {
-  background-color: #8f36fb;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  margin-top: 15px;
-  cursor: pointer;
-  border-radius: 5px;
+    background-color: #8f36fb;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    margin-top: 15px;
+    cursor: pointer;
+    border-radius: 5px;
 }
 button:hover {
-  background-color: #5400bb;
-}
-input {
-  display: block;
-  width: 100%;
-  padding: 10px;
-  margin-top: 10px;
-  border: 1px solid #d2b5f5;
-  border-radius: 5px;
+    background-color: #5400bb;
 }
 .main-container {
     display: flex;
@@ -56,17 +50,16 @@ header {
     width: 100%;
     background: #8f36fb;
     color: white;
-    padding: 10px 0px;
+    padding: 10px 20px;
     display: flex;
-    justify-content:space-evenly;
-    align-items: center;}
-  
-.account {
-    position: right;
-    cursor: pointer;
-    margin-left: 850px;
+    justify-content: space-between;
+    align-items: center;
+    box-sizing: border-box;
 }
-
+.account {
+    position: relative;
+    cursor: pointer;
+}
 .account-btn {
     background: white;
     color: #8f36fb;
@@ -77,17 +70,17 @@ header {
 .dropdown {
     display: none;
     position: absolute;
-    top: 70PX;
+    top: 45px;
     right: 0;
     background: white;
     color: #4a148c;
-    width: 150px;
+    width: 160px;
     border-radius: 8px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.2);
     padding: 10px 0;
     text-align: left;
+    z-index: 100;
 }
-
 .dropdown a {
     display: block;
     padding: 8px 15px;
@@ -95,28 +88,56 @@ header {
     color: #4a148c;
     border-radius: 4px;
 }
-
 .dropdown a:hover {
     background: #e1bee7;
 }
 .show {
     display: block;
 }
-form {
-    width: 350px;
+ 
+/* Suggestion popup */
+.popup-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    justify-content: center;
+    align-items: center;
+    z-index: 200;
 }
-</style>
+.popup-overlay.show {
+    display: flex;
+}
+.popup-box {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px black;
+    width: 320px;
+}
+.popup-box h2 {
+    color: #8f36fb;
+    margin-top: 0;
+}
+.close-btn {
+    background: #ccc;
+    color: #333;
+    margin-left: 10px;
+}
+.close-btn:hover {
+    background: #999;
+}
+    </style>
 </head>
 <body>
+ 
 <header>
     <h2>Medicine Compare</h2>
-
     <div class="account" onclick="toggleMenu()">
         <div class="account-btn">Account ⬇</div>
-
         <div id="dropdown" class="dropdown">
             {% if user %}
-                <a href="#">Submit Suggestion</a>
+                <a href="#" onclick="showPopup(event)">Submit Suggestion</a>
                 <a href="/out">Logout</a>
             {% else %}
                 <a href="/auth">Login</a>
@@ -124,48 +145,64 @@ form {
         </div>
     </div>
 </header>
-  <div class="main-container">
+ 
+<div class="main-container">
     <form action="/search" method="post">
         <h1>SEARCH BY FORMULA</h1>
         <label for="formula">MEDICINE FORMULA:</label>
         <input type="text" id="formula" name="formula" required>
         <button type="submit">SEARCH</button>
-        {% if results %}
-    <h2>Results for '{{ formula }}':</h2>
-    <ul>
-        {% for name, price in results %}
-            <li>{{ name }}: ₹{{ price }}</li>
-        {% endfor %}
-    </ul>
-      {% if best %}
-        <p><strong>Best Suggestion:</strong> {{ best }}</p>
-    {% endif %}
-{% else %}
-    <p>No results found.</p>
-{% endif %}
+ 
+        {% if results is not none %}
+            {% if results %}
+                <h2>Results for '{{ formula }}':</h2>
+                <ul>
+                    {% for name, price in results %}
+                        <li>{{ name }}: ₹{{ price }}</li>
+                    {% endfor %}
+                </ul>
+                {% if best %}
+                    <p><strong>Best Suggestion:</strong> {{ best }}</p>
+                {% endif %}
+            {% else %}
+                <p>No results found for '{{ formula }}'.</p>
+            {% endif %}
+        {% endif %}
     </form>
- <form>
-        <button onclick="showPopup()">Submit Suggestion</button>
-
-<div id="suggestionPopup" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-    <form action="/submit_suggestion" method="post">
-        <input type="text" name="suggestion" placeholder="Your suggestion" required>
-        <button type="submit">Submit</button>
-   
-    </form>
-</div></form>
-  <script>
-  function toggleMenu() {
+</div>
+ 
+<!-- Suggestion popup (separate from search form — no nested forms) -->
+<div class="popup-overlay" id="suggestionPopup">
+    <div class="popup-box">
+        <h2>Submit a Suggestion</h2>
+        <form action="/submit_suggestion" method="post">
+            <input type="text" name="suggestion" placeholder="Your suggestion" required>
+            <button type="submit">Submit</button>
+            <button type="button" class="close-btn" onclick="closePopup()">Cancel</button>
+        </form>
+    </div>
+</div>
+ 
+<script>
+function toggleMenu() {
     document.getElementById("dropdown").classList.toggle("show");
-   }
-
-  window.onclick = function(event) {
+}
+ 
+window.onclick = function(event) {
     if (!event.target.closest('.account')) {
         document.getElementById("dropdown").classList.remove("show");
     }
-   }
-   
-  </script>
-  
+}
+ 
+function showPopup(event) {
+    if (event) event.preventDefault();
+    document.getElementById("suggestionPopup").classList.add("show");
+}
+ 
+function closePopup() {
+    document.getElementById("suggestionPopup").classList.remove("show");
+}
+</script>
+ 
 </body>
 </html>
