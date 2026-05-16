@@ -226,3 +226,38 @@ def auth():
 def out():
     session.pop('user', None)
     return redirect('/')
+
+
+@app.route('/submit_suggestion', methods=['POST'])
+def submit_suggestion():
+    if 'user' not in session:
+        return redirect(url_for('auth'))
+    suggestion = request.form.get('suggestion', '').strip()
+    if suggestion:
+        conn   = get_db()
+        cursor = conn.cursor()
+        if DATABASE_URL:
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS suggestions (
+                    id         SERIAL PRIMARY KEY,
+                    mobile     TEXT,
+                    suggestion TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+        else:
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS suggestions (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    mobile     TEXT,
+                    suggestion TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+        cursor.execute(
+            q("INSERT INTO suggestions (mobile, suggestion) VALUES (?, ?)"),
+            (session['user'], suggestion)
+        )
+        conn.commit()
+        conn.close()
+    return redirect('/')
